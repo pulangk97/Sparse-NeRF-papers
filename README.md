@@ -8,7 +8,7 @@ papers of NeRF with sparse view inputs
 ### 1. Learning to Render Novel Views from Wide-Baseline Stereo Pairs (CVPR 2023)
 ### [project](https://yilundu.github.io/wide_baseline/)
 #### method  
-![](pic\Wide-baseline.png)  
+![base](pic\Wide-baseline.png)  
 制定了多视图转换器编码器，提出了一个高效的图像空间中心线采样方案来为目标光线提取图像特征，以及一个轻量级的基于交叉注意力的渲染器。我们的贡献使我们的方法能够在大规模的室内和室外场景的真实数据集上进行训练。我们证明了我们的方法在减少渲染时间的同时学习了强大的多视图几何先验。  
 对于一对立体视图，文章通过一个特征提取模块（模块加入pose embedding提高特征的多视图一致性）获取两个视图的pixel-wised 特征，之后对于一个待渲染的光线（target ray），根据该光线在两个视图中做投影，得到两个epiray，这两个epiray分别均匀采样并互相投影到对方视图得到两组特征点，共2N个点（一个视图的epiray均匀采样得到N个点）。这组特征点在特征匹配时对应具有相似的特征值，文章通过一个cross attention 模块将该特征提取出来，并通过MLP解码为颜色。  
 具体方法为（个人理解），对这2N个点通过MLP建模为key、value，之后将这2N个点的位置信息建模为query token，第一个cross attention模块根据坐标位置关系提取出相应的特征内容，之后将该特征内容concat到query中进行第二轮cross attention，由于匹配的特征在MLP构建的特征空间相比其他特征具有一定特殊性，因此第二轮attention能够将具有特殊性的特征映射到相近的key和query空间，而其他特征的key和query空间位置则较远，最终第二轮的attention主要query出匹配的特征，同时离该特征越远的对应attention map权重越低，从而能够计算粗糙的depth。
