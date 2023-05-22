@@ -12,8 +12,6 @@
 具体方法为（个人理解），对这2N个点通过MLP建模为key、value，之后将这2N个点的位置信息建模为query token，第一个cross attention模块根据坐标位置关系提取出相应的特征内容，之后将该特征内容concat到query中进行第二轮cross attention，由于匹配的特征在MLP构建的特征空间相比其他特征具有一定特殊性，因此第二轮attention能够将具有特殊性的特征映射到相近的key和query空间，而其他特征的key和query空间位置则较远，最终第二轮的attention主要query出匹配的特征，同时离该特征越远的对应attention map权重越低，从而能够计算粗糙的depth。
 
 
-
-
 ### **2. SPARF: Neural Radiance Fields from Sparse and Noisy Poses (CVPR 2023 Highlight)**  
 ### [project](prunetruong.com/sparf.github.io/)
 ### **Method**  
