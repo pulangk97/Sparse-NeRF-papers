@@ -12,6 +12,8 @@
 具体方法为（个人理解），对这2N个点通过MLP建模为key、value，之后将这2N个点的位置信息建模为query token，第一个cross attention模块根据坐标位置关系提取出相应的特征内容，之后将该特征内容concat到query中进行第二轮cross attention，由于匹配的特征在MLP构建的特征空间相比其他特征具有一定特殊性，因此第二轮attention能够将具有特殊性的特征映射到相近的key和query空间，而其他特征的key和query空间位置则较远，最终第二轮的attention主要query出匹配的特征，同时离该特征越远的对应attention map权重越低，从而能够计算粗糙的depth。
 
 
+
+
 ### **2. SPARF: Neural Radiance Fields from Sparse and Noisy Poses (CVPR 2023 Highlight)**  
 ### [project](prunetruong.com/sparf.github.io/)
 ### **Method**  
@@ -25,9 +27,26 @@
 ![](pic/ConsistentNeRF.png)  
 文章结合了多视图几何一致性和单视图深度一致性共同正则化NeRF重建。多视图几何一致性首先通过MVSNeRF构建mask，在MVSNeRF重建结果中每个像素计算参考视图重投影点的深度和MVSNeRF估计深度的差值，小于一个阈值mask为1，否则为0,通过构建mask保证多视图几何一致性匹配是有效的。构建好mask之后在mask内部计算几何一致性损失（输入视图每个像素根据NeRF估计深度逆投影到3D空间，再投影到目标视图，计算两个视图颜色损失），用于约束多视图NeRF几何重建。另外，文章对于单视图额外引入深度正则，即通过MiDas深度估计模型提供一个相对深度的先验，用该先验对单个视图的NeRF重建结果计算深度损失。文章实际上是立体视觉匹配和额外的深度正则共同作用的结果。
 
+### **4. GECONERF: FEW-SHOT NEURAL RADIANCE FIELDS VIA GEOMETRIC CONSISTENCY**
+### [project](https://ku-cvlab.github.io/GeCoNeRF/)   
+### **Method**  
+![](pic/GeCoNeRF.png)  
+文章为了实现稀疏视图下NeRF重建，在渲染损失基础上额外构建两个正则：  
+1. 在NeRF中结合多视图几何一致性配准方法，在输入视图附近采样unseen views，之后通过NeRF渲染的深度图讲输入视图的patch warp到unseen视图上，并通过特征提取器（VGG-19）构建pixel-wised特征配准损失，保证深度渲染准确和多视图的几何一致性。  
+2. 在seen view的深度图上使用TV正则保证深度平滑  
+
+在渲染损失、特征匹配损失和深度平滑正则共同作用下实现稀疏深度重建。训练过程采用两个策略，第一个是随机采样的视图从输入视图位姿开始逐渐向外扩展。第二个是随着迭代进行，MLP带宽从低到高逐渐变化，也就是先重建低频信息，再重建高频信息。  
+文章为了保证遮挡区域不进行warp，在特征匹配损失中加入额外的mask。如果seen视图中有一部分区域在unseen视图中被遮挡，那么这部分被遮挡的区域需要加入mask，因为这部分被遮挡的patch如果深度估计准确时warp的话会和其他部分warp到相同位置，在feature约束下会使深度偏离准确值。文章的mask是通过讲seen视图的渲染深度warp到unseen视图并根据和unseen视图的渲染深度损失小于一个阈值来构建的。
+
+为什么用特征匹配损失而不是颜色损失？  
+pixel color level的匹配损失一方面在非朗伯材料时会失效（不同视点颜色强度本身不同，导致匹配点的损失大，在经过优化后出现配准偏差）。或者pixel附近颜色强度相近，会导致附近其他点匹配到该像素，此时深度估计不准确但是仍然有较小的损失。最佳方法使pixel level特征配准。   
 
 
-## ***diffusion***
+
+
+
+
+## ***Generation***
 ### **1. Single-Stage Diffusion NeRF: A Unified Approach to 3D Generation and Reconstruction**  
 ### [project (under released)](https://github.com/Lakonik/SSDNeRF)
 ### **Method**  
@@ -47,6 +66,19 @@ PixelNeRF这种regression based方法确实能够根据不同场景的特征重�
 ### **Method**  
 ![](pic/nerfdiff.png)  
 这篇文章跟上一篇差不多，都是通过一个网络对输入视图计算3D特征，只不过上一篇是计算的锥体内的voxel特征，这一篇是通过U-Net输出一个三平面的投影特征，然后通过体渲染方式（MLP将3D特征映射为颜色和体密度）投影到targetview得到targetview的图像（上一篇是特征），拼接到targetview的噪声图像中进行CPM的条件去噪过程。
+
+### **4. 3D Neural Field Generation using Triplane Diffusion(CVPR 2023)**  
+### [project](https://jryanshue.com/nfd/)
+### **Method**  
+![](pic/Generation.png)  
+文章提出了一个unconditional的神经场（occupancy field）生成方法，具体过程分两步：第一步通过ShapeNet提供的3D模型的mesh数据训练occupancy network，即在mesh附近随机采样点（占用率label为1），在mesh外随机采样点（内部占用率1，外部占用率0），每个模型构建好gt点的label之后训练三平面特征（每个模型一组特征）和一个decoder（MLP，各个模型共享权重），中间加入了TV正则和EDR正则（每个点和其随机偏置的点占用率做损失），去除无约束区域的伪影以及保证平滑，最终得到一个三平面特征的数据集。第二步用这组数据训练一个2D的DDPM模型，即前向过程特征加噪，逆向过程U-Net去噪，最终U-Net学习到每步的噪声分布。3D模型生成过程通过随机采样噪声，根据U-Net学习到的噪声分布逐步去噪，得到去噪的三平面特征，从而构建出三平面特征表示的占用率场（occupancy field），可以通过raymarching方式query出3D模型的surface。
+
+### **5. Few-shot 3D Shape Generation**  
+### [project]()
+### **Method**  
+![](pic/few-shot.png)  
+文章通过域迁移的方式，将在完备数据集上预训练的3Dshape生成模型迁移到目标域，目标域中只有少量样本。文章首先有一个训练好的生成模型（3D GAN），这个生成模型通过一个mapping网络将高斯噪声map到shape和texture的隐空间，之后通过一个3D GAN网络（DMTet）建模为3Dshape。另外对于一个待训练的生成模型，该生成模型结构和预训练模型一致，只不过mapping网络的权重固定，但是生成网络的权重可学习。通过预训练网络和该网络之间进行做一组adaptation损失，包括texture adaptation(两个texture生成器的texture特征以及RGB特征做相似度计算、softmax之后计算二者KL散度)和geometry adaptation(两个shape生成器的shape特征以及投影特征做相似度计算、softmax之后计算二者KL散度)，之后鉴别器对目标域的生成投影和few-shot的GT投影做一个shape的鉴别。通过这种domain adaptation，让target model蒸馏出预训练模型学习到的数据分布，并且能够利用鉴别器有效迁移到目标域，做到比fine-tune更好的效果。
+
 
 ## ***Regularization***  
 ### **1. MixNeRF: Modeling a Ray with Mixture Density for Novel View Synthesis from Sparse Inputs（CVPR 2023）**  
@@ -71,6 +103,14 @@ PixelNeRF这种regression based方法确实能够根据不同场景的特征重�
 2. 手持的家用RGBD相机采样深度图时非常稀疏。  
 
 因此文章并非直接用深度图约束NeRF，而是随机采样两个深度点，并约束NeRF预测的深度相对位置保证一致（Rrank），同时采样点附近的patch深度保证变化较小（Rsmooth）。加入这两个额外正则后实现稀疏视图下的NeRF重建。文章额外提供了一组新的RGBD的多视图数据集，同时在DTU，LLFF基准数据集上验证（深度通过深度估计网络提供），和在新数据集上验证。
+
+
+### **4. Point-NeRF: Point-based Neural Radiance Fields (CVPR 2022 Oral)** 
+### [project](https://xharlie.github.io/projects/project_sites/pointnerf/)
+### **Method**  
+![method](pic/Point-NeRF.png)  
+文章是基于表面点云的NeRF渲染方法，方法是通过MVSNet首先对多视图图像构建表面点云（也可以通过colamp SFM的方法构建稀疏点云，效果略低但也可以），之后通过一个特征提取网络构建出pixel-level特征，并逆投影到点云上（MVSNet得到的是不同视图深度图，点云是根据depth逆投影得到的），得到具有表面几何、纹理特征以及表面概率的点云数据。在渲染时，还是正常的光线上采样，然后在采样点附近半径R的球体范围内采集这些点云，并加权求和得到该点特征，并通过MLP解码为颜色体密度。除此之外文章针对稀疏点云的可能导致部分采样点采不到特征的问题提出了point grow的方法，随机采样一些光线上的点然后计算这个点的体密度，如果这个点体密度比较大并且离最近的表面点比较远，那么将这个点加入到点云中，这个方法使得colmap得到的稀疏点云也能用这种方法进行渲染。
+
 
 ## ***Data Prior***  
 ### **1. pixelNeRF: Neural Radiance Fields from One or Few Images (CVPR 2021)**  
