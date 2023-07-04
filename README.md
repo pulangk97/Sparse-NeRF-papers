@@ -42,7 +42,23 @@
 pixel color level的匹配损失一方面在非朗伯材料时会失效（不同视点颜色强度本身不同，导致匹配点的损失大，在经过优化后出现配准偏差）。或者pixel附近颜色强度相近，会导致附近其他点匹配到该像素，此时深度估计不准确但是仍然有较小的损失。最佳方法使pixel level特征配准。   
 
 
+### **5. Dense Depth Priors for Neural Radiance Fields from Sparse Input Views （CVPR 2022）**
+### [project](https://github.com/barbararoessle/dense_depth_priors_nerf)   
+### **Method**  
+![](pic/densedepthprior.png)  
+文章主要针对室内场景的NeRF重建问题，实现18-36稀疏视图下重建室内场景辐射场。具体方法通过SFM提取稀疏视图的特征配准点云，之后将稀疏深度图输入到深度补全网络中获得稠密深度图，利用稠密深度图为NeRF提供几何正则和采样限制。文章的深度补全网络利用ScanNet和Matterport3D这两个RGBD数据集进行训练，为了保证下采样的稀疏深度图符合SFM重建的分布，数据构建方法为通过SFM提取RGB特征，重建损失小的位置保留深度GT值作为下采样结果，得到稀疏的深度图后输入到深度补全网络中，并和GT深度作loss训练深度补全网络，其中还加入了深度随机噪声提高鲁棒性。
 
+### **6. NerfingMVS: Guided Optimization of Neural Radiance Fields for Indoor Multi-view Stereo (ICCV 2021 (Oral Presentation))**
+### [project](https://github.com/weiyithu/NerfingMVS)   
+### **Method**  
+![](pic/NeRFMVS.png)  
+文章希望对稀疏视图下的辐射场重建加入深度正则，但是目前基于SFM的3D建模方法只能够获得稀疏的3D点云以及稀疏深度图，无法在pixel-level对辐射场进行几何正则（缺乏足够几何约束容易产生伪影），而深度估计方法则只能够建模相对位置关系不具有视图一致性，因此文章通过SFM建模的稀疏深度图作为监督微调单目深度估计网络，重建出pixel-level的深度图，再根据这个深度图约束NeRF的训练以及采样过程。
+
+### **7. MVSNeRF: Fast Generalizable Radiance Field Reconstruction from Multi-View Stereo （ICCV 2021）**
+### [project](https://apchenstu.github.io/mvsnerf/)   
+### **Method**  
+![](pic/MVSNeRF.png)  
+文章利用MVS方法中用到的cost-volume方法，将输入视图成像空间建模为锥体，对应锥体内任意3D空间位置可以用（u,v,z）表示，之后将这3D空间所有点投影到其它所有参考视图，并提取出每个参考视图对应的投影特征，最后每个空间点提取的一组特征计算方差，cost-volume用方差表示（具有几何一致性的表面一定具有较小的方差），这样建模了场景几何。之后需要通过3D巻积网络为几何特征引入外貌特征，并最终能够对于任意采样点提取的特征通过MLP解码为颜色和体密度。（由于提前建模了场景几何，因此外貌特征是容易聚合到几何特征中的）。
 
 
 
@@ -80,6 +96,14 @@ PixelNeRF这种regression based方法确实能够根据不同场景的特征重�
 文章通过域迁移的方式，将在完备数据集上预训练的3Dshape生成模型迁移到目标域，目标域中只有少量样本。文章首先有一个训练好的生成模型（3D GAN），这个生成模型通过一个mapping网络将高斯噪声map到shape和texture的隐空间，之后通过一个3D GAN网络（DMTet）建模为3Dshape。另外对于一个待训练的生成模型，该生成模型结构和预训练模型一致，只不过mapping网络的权重固定，但是生成网络的权重可学习。通过预训练网络和该网络之间进行做一组adaptation损失，包括texture adaptation(两个texture生成器的texture特征以及RGB特征做相似度计算、softmax之后计算二者KL散度)和geometry adaptation(两个shape生成器的shape特征以及投影特征做相似度计算、softmax之后计算二者KL散度)，之后鉴别器对目标域的生成投影和few-shot的GT投影做一个shape的鉴别。通过这种domain adaptation，让target model蒸馏出预训练模型学习到的数据分布，并且能够利用鉴别器有效迁移到目标域，做到比fine-tune更好的效果。
 
 
+### **6. NOVEL VIEW SYNTHESIS WITH DIFFUSION MODELS**  
+### [project](https://3d-diffusion.github.io/)
+### **Method**  
+![](pic/NVS.png)  
+文章提出一种以相机位姿和前帧为条件的扩散模型，实现few-shot下新视图生成。为了保证3D一致性，文章采用随机条件采样方法，即设定条件集，初始为随机某个视图的图像，训练过程中去噪的每一步从条件集中随机采样一个视图作为条件（视图的位姿也作为条件）训练去噪模型，这里的去噪模型文章采用cross-attention实现不同帧的交互，而非常规的拼接作为条件。训练完成后给定一组视图作为条件，就能够通过不断去噪过程生成3D一致的新视图。
+
+
+
 ## ***Regularization***  
 ### **1. MixNeRF: Modeling a Ray with Mixture Density for Novel View Synthesis from Sparse Inputs（CVPR 2023）**  
 ### **Method**  
@@ -109,10 +133,30 @@ PixelNeRF这种regression based方法确实能够根据不同场景的特征重�
 ### [project](https://xharlie.github.io/projects/project_sites/pointnerf/)
 ### **Method**  
 ![method](pic/Point-NeRF.png)  
-文章是基于表面点云的NeRF渲染方法，方法是通过MVSNet首先对多视图图像构建表面点云（也可以通过colamp SFM的方法构建稀疏点云，效果略低但也可以），之后通过一个特征提取网络构建出pixel-level特征，并逆投影到点云上（MVSNet得到的是不同视图深度图，点云是根据depth逆投影得到的），得到具有表面几何、纹理特征以及表面概率的点云数据。在渲染时，还是正常的光线上采样，然后在采样点附近半径R的球体范围内采集这些点云，并加权求和得到该点特征，并通过MLP解码为颜色体密度。除此之外文章针对稀疏点云的可能导致部分采样点采不到特征的问题提出了point grow的方法，随机采样一些光线上的点然后计算这个点的体密度，如果这个点体密度比较大并且离最近的表面点比较远，那么将这个点加入到点云中，这个方法使得colmap得到的稀疏点云也能用这种方法进行渲染。
+文章是基于表面点云的NeRF渲染方法，方法是通过MVSNet首先对多视图图像构建表面点云（也可以通过colamp SFM的方法构建稀疏点云，效果略低但也可以），之后通过一个特征提取网络构建出pixel-level特征，并逆投影到点云上（MVSNet得到的是不同视图深度图，点云是根据depth逆投影得到的），得到具有表面几何、纹理特征以及表面概率的点云数据。在渲染时，还是正常的光线上采样，然后在采样点附近半径R的球体范围内采集这些点云，并加权求和得到该点特征，并通过MLP解码为颜色体密度。除此之外文章针对稀疏点云的可能导致部分采样点采不到特征的问题提出了point grow的方法，随机采样一些光线上的点然后计算这个点的体密度，如果这个点体密度比较大并且离最近的表面点比较远，那么将这个点加入到点云中，这个方法使得colmap得到的稀疏点云也能用这种方法进行渲染。  
+
+### **5. FWD: Real-time Novel View Synthesis with Forward Warping and Depth (CVPR 2022)** 
+### [project](https://caoang327.github.io/FWD/)
+### **Method**  
+![method](pic/FWD.png)  
+文章是利用MVS方法(PatchmatchNet)计算深度图，之后针对稀疏输入下深度图稀疏问题引入一个UNet作为深度补全和精调网络获得每个输入视图的深度图，同时每个输入视图的通过一个特征提取网络获得浅层特征，特征和RGB值通过深度图投影到目标视图，并通过一个两层的MLP为特征引入视角变化，得到view-dependent特征，之后所有输入视图在目标视图上的特征投影通过一个融合和精调网络重建出精细的目标视图，融合网络通过transformer实现。  
 
 
-## ***Data Prior***  
+### **6. Putting NeRF on a Diet: Semantically Consistent Few-Shot View Synthesis** 
+### [project](https://www.ajayj.com/dietnerf)
+### **Method**  
+![method](pic/dietNeRF.png)  
+在缺乏先验知识的情况下，基于正则的NeRF只能对内插视图生成有效果，当新试图在可见视图之外（外插）时，效果通常很差。clip作为一种多模态模型，通过从互联网中获得的大量的文本和图像对，实现文本和图像的语义对齐，同时也能够有效编码出有效的对其的图像语言。文章利用clip作为encoder提取出渲染新视图的语义，并保证新视图语义和输入视图对齐，实现较好的外插能力（作为一种先验知识），其次结合pixelNeRF用语义对其微调pixelNeRF，由于pixelNeRF本身作为回归模型能够对不同场景的辐射场进行回归，但是新视图会存在模糊，加入语义约束后提升了生成质量并能够单视图重建。  
+
+
+### **7. InfoNeRF: Ray Entropy Minimization for Few-Shot Neural Volume Rendering (CVPR 2022)** 
+### [project](http://cvlab.snu.ac.kr/research/InfoNeRF/)
+### **Method**  
+![method](pic/infoNeRF.png)  
+文章基于few-shot下NeRF重建over-fitting的问题，这种over-fitting导致无法正确重建几何从而造成无法生成几何一致的新视图。文章提出了光线密度熵正则方法，如图所示，对每条光线的采样点归一化权重计算香农熵，并作为正则约束，保证训练过程中体密度具有较少的变化（熵较小），另外根据acc加入了一个mask，只在有物体区域作熵约束。除此之外加入了一个附近光线体密度分布KL散度约束，防止over-fitting到局部视图。 
+
+
+## ***Regression based***  
 ### **1. pixelNeRF: Neural Radiance Fields from One or Few Images (CVPR 2021)**  
 ### [project](https://alexyu.net/pixelnerf)
 ### **Method**  
@@ -123,4 +167,16 @@ PixelNeRF这种regression based方法确实能够根据不同场景的特征重�
 2. 无论学习3D全局表征还是学习空间对齐的局部特征，都需要额外3D监督     
 
 文章提出一种不需要任何额外的3D数据先验的稀疏新视图重建方法，仅利用多视图图像数据集学习多场景的数据先验。方法具体为，训练时随机采样一个输入视图一个目标视图，目标视图正常按照NeRF方法采样空间点，输入视图通过ImageNet预训练的ResNet前4层提取low-level特征，目标视图光线的采样点在输入视图上采样low-level特征，特征和坐标位置、光线方向送入解码器得到体密度和颜色，之后通过重建损失训练解码器。最终得到一个能够根据空间位置、特征（投影得到）和方向计算出体密度和颜色的解码器。训练好之后，给定单个参考视图或多个参考视图，目标新视图渲染能够通过投影在参考视图提取特征-解码-渲染过程得到新视图图像。文章方法能够在ShapeNet合成数据集和DTU真实数据集上实现稀疏视图的NeRF重建。
-（感觉方法上泛化性有些局限性，不太清楚解码器到底学到的是啥，感觉像是记忆下某种特征下空间位置的体密度颜色啥的）
+（感觉方法上泛化性有些局限性，不太清楚解码器到底学到的是啥，感觉像是记忆下某种特征下空间位置的体密度颜色啥的） 
+
+### **2. Vision Transformer for NeRF-Based View Synthesis from a Single Input Image (WACV 2023)**  
+### [project](https://cseweb.ucsd.edu/~viscomp/projects/VisionNeRF/)
+### **Method**  
+![method](pic/vit-NeRF.png)  
+文章提出结合ViT提取全局上下文特征和ResNet提取的局部特征共同用于基于NeRF表示的多场景回归模型，实现单视图下重建场景并生成unseen的新视图。文章方法类似pixel-NeRF，只不过相比pixel-NeRF单纯提取局部特征用于为decoder提供偏置，文章额外利用了一个ViT提供全局语义特征，并和局部特征合并送入decoder渲染器中。（文章认为全局特征有助于重建物体整体观，而CNN提取的局部特征能够提供归纳偏置并提升视觉感观）。渲染器的MLP根据合并的特征、坐标、光线方向解码出体密度和颜色并进行体渲染。训练过程中，ViT权重通过预训练初始化并微调。
+
+### **3. GRF: Learning a General Radiance Field for 3D Representation and Rendering **  
+### [project]()
+### **Method**  
+![method](pic/GRF.png)  
+文章提出通用的辐射场，实际上是训练了一个回归模型，对于一条光线的采样点，投影到输入视图之后提取输入视图的特征，这里特征是类似一个U-Net结构，不过不再是RGB三通道而是加入了内外参作为额外的通道，这里U-Net是需要训练的，之后采样点得到的一堆特征需要聚合为一个特征，同时还要保证聚合能够解决遮挡问题，这里采用的是基于attention的特征聚合模块，后面就是常规的用MLP解码并进行体渲染。文章方法个人认为还是比较好训的，毕竟特征提取之后特征聚合只需要根据特征相似度进行内容提取。文章之后有一些泛化性实验，在NeRF合成数据集上有一点泛化能力但是不强，需要在unseen场景中微调。
